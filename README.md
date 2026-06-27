@@ -34,7 +34,20 @@ npm run dev
 ## Маршруты
 
 - `/admin/login` — вход (JWT)
-- `/admin` — панель парсинга (защищённый маршрут)
+- `/admin/parse` — запуск парсинга + статус + превью
+- `/admin/data` — CRUD таблица цен (только role=admin)
+
+## CRUD (экран «Данные»)
+
+| Действие | API |
+|----------|-----|
+| Список + фильтры | `GET /parser/data/prices` |
+| Создать | `POST /parser/data/prices` |
+| Редактировать | `PATCH /parser/data/prices/{id}` |
+| Скрыть | `DELETE /parser/data/prices/{id}` |
+| Удалить навсегда | `DELETE /parser/data/prices/{id}?hard=true` |
+
+При `403` показывается подсказка: нужен `role=admin` в БД и перелогин.
 
 ## Функции
 
@@ -42,4 +55,6 @@ npm run dev
 - Запуск `POST /parser/{source}/run`
 - Polling `GET /parser/status` (10 с первые 2 мин, затем 30 с)
 - Таблица спарсенных городов и превью цен
+- Таблица CRUD с фильтрами, пагинацией, созданием и редактированием
+- Скрытие и жёсткое удаление записей
 - Авто-refresh JWT при 401

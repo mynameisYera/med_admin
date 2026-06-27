@@ -325,10 +325,143 @@ select:focus {
   }
 }
 
+.admin-nav {
+  display: flex;
+  gap: 8px;
+  padding: 12px 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-nav-link {
+  padding: 8px 14px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.admin-nav-link.active {
+  background: #eef2ff;
+  color: var(--primary);
+}
+
+.admin-nav-link:hover {
+  background: #f3f4f6;
+}
+
+.filters {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkbox-field input[type='checkbox'] {
+  width: auto;
+}
+
+.field-wide {
+  grid-column: 1 / -1;
+}
+
+.table-crud {
+  font-size: 0.875rem;
+}
+
+.table-crud .cell-service {
+  max-width: 220px;
+}
+
+.table-crud .cell-date {
+  white-space: nowrap;
+}
+
+.row-inactive {
+  opacity: 0.65;
+  background: #fafafa;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.badge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-active {
+  background: #d1fae5;
+  color: var(--success);
+}
+
+.badge-inactive {
+  background: #fee2e2;
+  color: var(--error);
+}
+
+.btn-danger {
+  background: #fef2f2;
+  color: var(--error);
+  border: 1px solid #fecaca;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 35, 50, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  z-index: 100;
+}
+
+.modal {
+  width: min(100%, 720px);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.alert code {
+  font-size: 0.8125rem;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
 @media (max-width: 640px) {
   .topbar,
-  .content {
+  .content,
+  .admin-nav {
     padding-left: 16px;
     padding-right: 16px;
+  }
+
+  .table-crud .cell-service {
+    max-width: 140px;
   }
 }
