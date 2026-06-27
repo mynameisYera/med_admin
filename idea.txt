@@ -1,0 +1,270 @@
+АДМИНКА — ЗАПУСК ПАРСИНГА
+==========================
+
+Цель: отдельный экран (или раздел) только для администратора, где можно
+выбрать лабораторию, город, лимит — нажать «Запустить» — видеть прогресс
+и результат. Пользовательский сайт только читает цены; парсинг запускает админ.
+
+
+================================================================================
+0. ЧТО УЖЕ ЕСТЬ НА БЭКЕНДЕ (ничего нового писать не обязательно)
+================================================================================
+
+Base URL: https://uiren-backend.onrender.com/api  (локально http://127.0.0.1:8000/api)
+
+Источники (лаборатории):
+  kdl      — KDL Олимп (kdlolymp.kz)
+  olymp    — тот же API, отдельный source
+  helix    — helix.ru
+  invitro  — invitro.kz
+
+Ручки для админки:
+
+  POST /parser/{source}/run     — запуск парсинга (202, сразу ответ)
+  GET  /parser/status           — идёт ли сейчас job + результат прошлого
+  GET  /parser/{source}/cities  — список slug городов для dropdown
+  GET  /parser/cities/parsed    — что уже спарсено (все source вместе)
+  GET  /parser/prices           — превью сохранённых цен (проверка после парсинга)
+
+Тело POST /parser/helix/run:
+  {
+    "limit": 20,
+    "cities": ["almaty"]
+  }
+
+  limit  — сколько УСЛУГ сохранить (не городов!). default 20, max 500.
+  cities — slug города(ов). Если не указать — первый город из discover()
+           (у KDL часто zhezkazgan — в админке город лучше всегда выбирать явно).
+
+Заголовок на все запросы:
+  Authorization: JWT <access_token>
+
+Важно:
+  • Парсинг идёт в фоне — POST не ждёт окончания.
+  • Одновременно только один job → второй POST вернёт 409 Conflict.
+  • Статус один глобальный (не per-source).
+
+
+================================================================================
+1. КТО МОЖЕТ ЗАХОДИТЬ В АДМИНКУ
+================================================================================
+
+Сейчас: любой залогиненный пользователь с JWT может вызвать /parser/run.
+Для настоящей админки нужно ограничить доступ.
+
+Вариант A (быстро, без доработки бэка):
+  • Отдельный URL админки (/admin), не показывать ссылку в основном UI.
+  • Логин только «служебного» аккаунта (знаете phone/password).
+
+Вариант B (правильно, небольшая доработка бэка):
+  • В User уже есть поле role (default "student").
+  • При регистрации админа вручную в БД: role = "admin".
+  • На бэке: dependency get_current_admin — проверка role == "admin".
+  • Роуты POST /parser/*/run и GET /parser/status повесить только на admin.
+  • GET /parser/prices и /cities/parsed могут остаться для всех залогиненных
+    (или тоже только admin — на ваш выбор).
+
+Рекомендация: Вариант B перед продом.
+
+
+================================================================================
+2. ЭКРАНЫ АДМИНКИ (минимум)
+================================================================================
+
+ЭКРАН 1 — Логин
+  • Тот же POST /auth/login что и у основного приложения.
+  • Сохранить access_token + refresh_token.
+  • (Если B) после логина GET /auth/me или поле user в токене — проверить role.
+
+ЭКРАН 2 — Панель парсинга (главный)
+
+  ┌─────────────────────────────────────────────────────────┐
+  │  Парсинг цен                                            │
+  ├─────────────────────────────────────────────────────────┤
+  │  Лаборатория:  [ KDL ▼ ]   (kdl | olymp | helix | invitro)
+  │  Город:        [ almaty ▼ ]  ← из GET /parser/{source}/cities
+  │  Лимит услуг:  [ 20    ]    (число 1–500)
+  │                                                         │
+  │  [ Запустить парсинг ]   [ Обновить статус ]             │
+  ├─────────────────────────────────────────────────────────┤
+  │  Статус: ● Выполняется… 45 сек                          │
+  │  или:    ✓ Завершено 27.06 15:30                        │
+  │          Записей: 20, ошибок: 0, города: almaty          │
+  │  или:    ✗ Ошибка: TimeoutError: …                      │
+  └─────────────────────────────────────────────────────────┘
+
+  Блок «Уже спарсено» (таблица или chips):
+    GET /parser/cities/parsed
+    → kdl/almaty, helix/astana, invitro/almaty …
+
+  Опционально — превью последних цен:
+    GET /parser/prices?source=helix&city=almaty&limit=10
+
+
+================================================================================
+3. ПОШАГОВЫЙ FLOW НА ФРОНТЕ
+================================================================================
+
+Шаг 1 — Загрузка формы
+  1. Выбран source по умолчанию: kdl
+  2. GET /parser/kdl/cities → заполнить dropdown городов
+  3. GET /parser/status → если running=true, показать «идёт парсинг»
+  4. GET /parser/cities/parsed → таблица «что уже есть в БД»
+
+Шаг 2 — Смена лаборатории
+  • При смене source → снова GET /parser/{newSource}/cities
+  • Сбросить выбранный город или выбрать первый из списка
+
+Шаг 3 — Запуск
+  POST /parser/{source}/run
+  Body: { "limit": 20, "cities": ["almaty"] }
+
+  Ответ 202:
+  {
+    "status": "started",
+    "source": "helix",
+    "limit": 20,
+    "cities": ["almaty"],
+    "estimated_minutes": 1,
+    "message": "…опрашивайте GET /parser/status…"
+  }
+
+  → Заблокировать кнопку «Запустить»
+  → Запустить polling статуса (см. шаг 4)
+
+  Ошибки:
+  409 — уже идёт другой парсинг → показать «Дождитесь завершения»
+  400 — неверный city slug → показать detail из ответа
+  401 — refresh token → POST /auth/refresh → повторить
+
+Шаг 4 — Polling статуса
+  Каждые 30 сек (или 10 сек первые 2 минуты):
+    GET /parser/status
+
+  Response:
+  {
+    "running": true,
+    "started_at": "2026-06-27T12:00:00+00:00",
+    "elapsed_seconds": 45,
+    "last_stats": null,
+    "last_error": null
+  }
+
+  Когда running === false:
+    • Разблокировать кнопку «Запустить»
+    • Показать last_stats:
+        source, total_records, errors, cities_ok
+    • Если last_error — показать красным
+    • Обновить GET /parser/cities/parsed и превью /prices
+
+Шаг 5 — Проверка результата
+  GET /parser/prices?source=helix&city=almaty&limit=20
+  — убедиться что price_kzt и service_name_raw на месте.
+
+
+================================================================================
+4. ПРИМЕР КОДА (React / TypeScript)
+================================================================================
+
+const API = 'https://uiren-backend.onrender.com/api';
+
+function headers(token: string) {
+  return {
+    Authorization: `JWT ${token}`,
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+}
+
+// Города для выбранной лаборатории
+async function fetchCities(token: string, source: string): Promise<string[]> {
+  const r = await fetch(`${API}/parser/${source}/cities`, { headers: headers(token) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// Запуск
+async function startParse(
+  token: string,
+  source: string,
+  limit: number,
+  cities: string[],
+) {
+  const r = await fetch(`${API}/parser/${source}/run`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify({ limit, cities }),
+  });
+  if (r.status === 409) throw new Error('Парсинг уже выполняется');
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// Статус
+async function fetchStatus(token: string) {
+  const r = await fetch(`${API}/parser/status`, { headers: headers(token) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// Polling hook (упрощённо)
+function useParserPolling(token: string, enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    const id = setInterval(async () => {
+      const s = await fetchStatus(token);
+      if (!s.running) {
+        clearInterval(id);
+        // onComplete(s)
+      }
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [token, enabled]);
+}
+
+
+================================================================================
+5. UX-СОВЕТЫ
+================================================================================
+
+• Всегда выбирать город явно — не оставлять cities пустым.
+• Для первого теста: limit=20, один город (almaty / astana).
+• Helix и Invitro: один fetch города может быть долгим (много HTML) —
+  estimated_minutes из ответа POST показывать пользователю.
+• Пока running=true — не слать второй POST (бэк вернёт 409).
+• После успеха — обновить список cities/parsed (badge «есть данные»).
+• Лог last_error копировать в буфер для отладки.
+
+
+================================================================================
+6. ЧТО ДОРАБОТАТЬ НА БЭКЕ (если нужна полноценная админка)
+================================================================================
+
+Приоритет 1 — доступ:
+  [ ] role=admin + get_current_admin на POST .../run и GET /status
+  [ ] GET /auth/me → { role, phone, name } для проверки на фронте
+
+Приоритет 2 — удобство админки (опционально):
+  [ ] GET /parser/sources → список { id, title, base_url } для UI
+  [ ] В status добавить current_source, limit, cities (сейчас только в last_stats)
+  [ ] Очередь jobs вместо одного global lock (если нужно парсить несколько source подряд)
+
+Приоритет 3 — мониторинг:
+  [ ] GET /parser/errors?limit=20 — последние из parse_errors
+  [ ] Webhook или SSE когда job finished (вместо polling)
+
+
+================================================================================
+7. ЧЕКЛИСТ «АДМИНКА ГОТОВА»
+================================================================================
+
+[ ] Страница /admin с логином
+[ ] Dropdown лаборатория + город (данные с API)
+[ ] Поле limit + кнопка «Запустить»
+[ ] Polling /parser/status до running=false
+[ ] Показ last_stats / last_error
+[ ] Таблица /parser/cities/parsed
+[ ] (Желательно) только role=admin может запускать парсинг
+[ ] Refresh token при 401
+
+Swagger для ручной проверки: http://127.0.0.1:8000/docs
