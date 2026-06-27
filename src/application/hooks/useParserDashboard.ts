@@ -23,6 +23,7 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
   const [status, setStatus] = useState<ParserStatus | null>(null);
   const [parsedCities, setParsedCities] = useState<ParsedCityEntry[]>([]);
   const [prices, setPrices] = useState<PriceRecord[]>([]);
+  const [pricesLoading, setPricesLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,19 +47,9 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
     }
   }, []);
 
-  const refreshParsedAndPrices = useCallback(async () => {
+  const refreshParsedCities = useCallback(async () => {
     const parsed = await parserService.loadParsedCities();
     setParsedCities(parsed);
-
-    const currentCity = cityRef.current;
-    if (currentCity) {
-      const nextPrices = await parserService.loadPrices(
-        sourceRef.current,
-        currentCity,
-        Math.min(limitRef.current, 20),
-      );
-      setPrices(nextPrices);
-    }
   }, []);
 
   const pollStatusRef = useRef<() => Promise<void>>(async () => {});
@@ -81,7 +72,7 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
       } else {
         pollingStartedAt.current = null;
         clearPollTimer();
-        await refreshParsedAndPrices();
+        await refreshParsedCities();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка опроса статуса');
@@ -115,17 +106,7 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
         setCity(nextCities[0] ?? '');
         setStatus(nextStatus);
         setParsedCities(nextParsed);
-
-        if (nextCities[0]) {
-          const nextPrices = await parserService.loadPrices(
-            nextSource,
-            nextCities[0],
-            10,
-          );
-          if (!cancelled) setPrices(nextPrices);
-        } else {
-          setPrices([]);
-        }
+        setPrices([]);
 
         if (nextStatus.running) {
           startPolling();
@@ -212,8 +193,20 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
     }
   }, [startPolling]);
 
+  const changeCity = useCallback((nextCity: string) => {
+    setCity(nextCity);
+    setPrices([]);
+  }, []);
+
   const refreshPrices = useCallback(async () => {
-    if (!cityRef.current) return;
+    if (!cityRef.current) {
+      setError('Выберите город');
+      return;
+    }
+
+    setPricesLoading(true);
+    setError(null);
+
     try {
       const nextPrices = await parserService.loadPrices(
         sourceRef.current,
@@ -222,7 +215,10 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
       );
       setPrices(nextPrices);
     } catch (err) {
+      setPrices([]);
       setError(err instanceof Error ? err.message : 'Ошибка загрузки цен');
+    } finally {
+      setPricesLoading(false);
     }
   }, []);
 
@@ -235,12 +231,13 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
     changeSource,
     cities,
     city,
-    setCity,
+    setCity: changeCity,
     limit,
     setLimit,
     status,
     parsedCities,
     prices,
+    pricesLoading,
     loading,
     actionLoading,
     error,

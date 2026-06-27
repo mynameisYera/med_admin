@@ -58,7 +58,8 @@ export function ParsePage() {
               prices={dashboard.prices}
               source={dashboard.source}
               city={dashboard.city}
-              onRefresh={() => void dashboard.refreshPrices()}
+              loading={dashboard.pricesLoading}
+              onLoad={() => void dashboard.refreshPrices()}
             />
           </section>
         </>
