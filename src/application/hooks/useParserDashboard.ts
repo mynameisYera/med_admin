@@ -28,8 +28,16 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
   const [error, setError] = useState<string | null>(null);
   const [startInfo, setStartInfo] = useState<StartParseResponse | null>(null);
 
+  const sourceRef = useRef(source);
+  const cityRef = useRef(city);
+  const limitRef = useRef(limit);
   const pollingStartedAt = useRef<number | null>(null);
   const pollTimer = useRef<number | null>(null);
+  const hasLoadedOnce = useRef(false);
+
+  sourceRef.current = source;
+  cityRef.current = city;
+  limitRef.current = limit;
 
   const clearPollTimer = useCallback(() => {
     if (pollTimer.current !== null) {
@@ -38,24 +46,24 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
     }
   }, []);
 
-  const refreshParsedAndPrices = useCallback(
-    async (currentSource: ParserSource, currentCity: string) => {
-      const parsed = await parserService.loadParsedCities();
-      setParsedCities(parsed);
+  const refreshParsedAndPrices = useCallback(async () => {
+    const parsed = await parserService.loadParsedCities();
+    setParsedCities(parsed);
 
-      if (currentCity) {
-        const nextPrices = await parserService.loadPrices(
-          currentSource,
-          currentCity,
-          Math.min(limit, 20),
-        );
-        setPrices(nextPrices);
-      }
-    },
-    [limit],
-  );
+    const currentCity = cityRef.current;
+    if (currentCity) {
+      const nextPrices = await parserService.loadPrices(
+        sourceRef.current,
+        currentCity,
+        Math.min(limitRef.current, 20),
+      );
+      setPrices(nextPrices);
+    }
+  }, []);
 
-  const pollStatus = useCallback(async () => {
+  const pollStatusRef = useRef<() => Promise<void>>(async () => {});
+
+  pollStatusRef.current = async () => {
     try {
       const nextStatus = await parserService.refreshStatus();
       setStatus(nextStatus);
@@ -68,70 +76,83 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
           elapsed < FAST_POLL_DURATION_MS ? FAST_POLL_MS : SLOW_POLL_MS;
 
         pollTimer.current = window.setTimeout(() => {
-          void pollStatus();
+          void pollStatusRef.current();
         }, delay);
       } else {
         pollingStartedAt.current = null;
         clearPollTimer();
-        await refreshParsedAndPrices(source, city);
+        await refreshParsedAndPrices();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка опроса статуса');
       clearPollTimer();
     }
-  }, [clearPollTimer, city, refreshParsedAndPrices, source]);
+  };
 
   const startPolling = useCallback(() => {
     clearPollTimer();
     pollingStartedAt.current = Date.now();
-    void pollStatus();
-  }, [clearPollTimer, pollStatus]);
-
-  const loadInitial = useCallback(async (nextSource: ParserSource) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const [nextCities, nextStatus, nextParsed] =
-        await parserService.loadDashboard(nextSource);
-
-      setCities(nextCities);
-      setCity(nextCities[0] ?? '');
-      setStatus(nextStatus);
-      setParsedCities(nextParsed);
-
-      if (nextCities[0]) {
-        const nextPrices = await parserService.loadPrices(
-          nextSource,
-          nextCities[0],
-          10,
-        );
-        setPrices(nextPrices);
-      } else {
-        setPrices([]);
-      }
-
-      if (nextStatus.running) {
-        startPolling();
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки');
-    } finally {
-      setLoading(false);
-    }
-  }, [startPolling]);
+    void pollStatusRef.current();
+  }, [clearPollTimer]);
 
   useEffect(() => {
-    void loadInitial(source);
-    return () => clearPollTimer();
-  }, [source, loadInitial, clearPollTimer]);
+    let cancelled = false;
 
-  const changeSource = useCallback(
-    async (nextSource: ParserSource) => {
-      setSource(nextSource);
-    },
-    [],
-  );
+    async function loadForSource(nextSource: ParserSource) {
+      if (!hasLoadedOnce.current) {
+        setLoading(true);
+      }
+      setError(null);
+      clearPollTimer();
+
+      try {
+        const [nextCities, nextStatus, nextParsed] =
+          await parserService.loadDashboard(nextSource);
+
+        if (cancelled) return;
+
+        setCities(nextCities);
+        setCity(nextCities[0] ?? '');
+        setStatus(nextStatus);
+        setParsedCities(nextParsed);
+
+        if (nextCities[0]) {
+          const nextPrices = await parserService.loadPrices(
+            nextSource,
+            nextCities[0],
+            10,
+          );
+          if (!cancelled) setPrices(nextPrices);
+        } else {
+          setPrices([]);
+        }
+
+        if (nextStatus.running) {
+          startPolling();
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Ошибка загрузки');
+        }
+      } finally {
+        if (!cancelled) {
+          hasLoadedOnce.current = true;
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadForSource(source);
+
+    return () => {
+      cancelled = true;
+      clearPollTimer();
+    };
+  }, [source, clearPollTimer, startPolling]);
+
+  const changeSource = useCallback((nextSource: ParserSource) => {
+    setSource(nextSource);
+  }, []);
 
   const refreshStatus = useCallback(async () => {
     setActionLoading(true);
@@ -139,7 +160,7 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
     try {
       const nextStatus = await parserService.refreshStatus();
       setStatus(nextStatus);
-      if (nextStatus.running && !pollTimer.current) {
+      if (nextStatus.running && pollTimer.current === null) {
         startPolling();
       }
     } catch (err) {
@@ -150,19 +171,23 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
   }, [startPolling]);
 
   const startParse = useCallback(async () => {
-    if (!city) {
+    if (!cityRef.current) {
       setError('Выберите город');
       return;
     }
 
-    const safeLimit = Math.min(500, Math.max(1, limit));
+    const safeLimit = Math.min(500, Math.max(1, limitRef.current));
 
     setActionLoading(true);
     setError(null);
     setStartInfo(null);
 
     try {
-      const response = await parserService.startParse(source, safeLimit, city);
+      const response = await parserService.startParse(
+        sourceRef.current,
+        safeLimit,
+        cityRef.current,
+      );
       setStartInfo(response);
       setStatus((prev) =>
         prev
@@ -185,17 +210,21 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
     } finally {
       setActionLoading(false);
     }
-  }, [city, limit, source, startPolling]);
+  }, [startPolling]);
 
   const refreshPrices = useCallback(async () => {
-    if (!city) return;
+    if (!cityRef.current) return;
     try {
-      const nextPrices = await parserService.loadPrices(source, city, 10);
+      const nextPrices = await parserService.loadPrices(
+        sourceRef.current,
+        cityRef.current,
+        10,
+      );
       setPrices(nextPrices);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка загрузки цен');
     }
-  }, [city, source]);
+  }, []);
 
   const isRunning = Boolean(status?.running);
 

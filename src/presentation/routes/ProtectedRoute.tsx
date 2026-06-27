@@ -31,7 +31,7 @@ export function GuestRoute() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to="/admin/parse" replace />;
   }
 
   return <Outlet />;

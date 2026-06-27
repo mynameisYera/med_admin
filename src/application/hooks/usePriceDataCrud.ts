@@ -17,14 +17,30 @@ const PAGE_SIZE = 50;
 
 export type PriceFormMode = 'create' | 'edit';
 
+interface AppliedFilters {
+  source: string;
+  city: string;
+  query: string;
+  includeInactive: boolean;
+}
+
+const EMPTY_FILTERS: AppliedFilters = {
+  source: '',
+  city: '',
+  query: '',
+  includeInactive: false,
+};
+
 export function usePriceDataCrud() {
   const [items, setItems] = useState<AdminPrice[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
-  const [source, setSource] = useState<string>('');
+  const [source, setSource] = useState('');
   const [city, setCity] = useState('');
   const [query, setQuery] = useState('');
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [appliedFilters, setAppliedFilters] =
+    useState<AppliedFilters>(EMPTY_FILTERS);
   const [cities, setCities] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -63,10 +79,10 @@ export function usePriceDataCrud() {
 
     try {
       const result = await priceDataService.list({
-        source: source || undefined,
-        city: city || undefined,
-        q: query || undefined,
-        includeInactive,
+        source: appliedFilters.source || undefined,
+        city: appliedFilters.city || undefined,
+        q: appliedFilters.query || undefined,
+        includeInactive: appliedFilters.includeInactive,
         limit: PAGE_SIZE,
         offset,
       });
@@ -84,7 +100,7 @@ export function usePriceDataCrud() {
     } finally {
       setLoading(false);
     }
-  }, [source, city, query, includeInactive, offset]);
+  }, [appliedFilters, offset]);
 
   useEffect(() => {
     void loadList();
@@ -100,14 +116,21 @@ export function usePriceDataCrud() {
   }, [formOpen, formData.source, source, loadCities]);
 
   const applyFilters = useCallback(() => {
+    setAppliedFilters({
+      source,
+      city,
+      query,
+      includeInactive,
+    });
     setOffset(0);
-  }, []);
+  }, [source, city, query, includeInactive]);
 
   const resetFilters = useCallback(() => {
     setSource('');
     setCity('');
     setQuery('');
     setIncludeInactive(false);
+    setAppliedFilters(EMPTY_FILTERS);
     setOffset(0);
   }, []);
 
