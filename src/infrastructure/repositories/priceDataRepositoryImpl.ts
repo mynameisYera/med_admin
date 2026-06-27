@@ -24,7 +24,12 @@ interface RawAdminPrice {
 
 interface RawListResponse {
   items?: RawAdminPrice[];
+  results?: RawAdminPrice[];
+  data?: RawAdminPrice[];
+  prices?: RawAdminPrice[];
   total?: number;
+  count?: number;
+  total_count?: number;
 }
 
 function mapPrice(raw: RawAdminPrice): AdminPrice {
@@ -55,24 +60,48 @@ function buildQuery(params: PriceListParams): string {
   return search.toString();
 }
 
-function normalizeList(data: RawAdminPrice[] | RawListResponse): PriceListResult {
+function normalizeList(data: unknown): PriceListResult {
   if (Array.isArray(data)) {
-    return { items: data.map(mapPrice), total: data.length };
+    return {
+      items: data.map((item) => mapPrice(item as RawAdminPrice)),
+      total: data.length,
+    };
   }
 
-  const items = (data.items ?? []).map(mapPrice);
-  return {
-    items,
-    total: data.total ?? items.length,
-  };
+  if (data && typeof data === 'object') {
+    const payload = data as RawListResponse;
+    const rawItems =
+      payload.items ??
+      payload.results ??
+      payload.data ??
+      payload.prices ??
+      [];
+
+    const items = rawItems.map(mapPrice);
+    const total =
+      payload.total ??
+      payload.count ??
+      payload.total_count ??
+      items.length;
+
+    return { items, total };
+  }
+
+  return { items: [], total: 0 };
 }
 
 function handleAdminError(status: number, detail: string): never {
   if (status === 403) {
     throw new ApiError('Нет прав администратора', 403, detail);
   }
+  if (status === 401) {
+    throw new ApiError('Сессия истекла. Войдите снова.', 401, detail);
+  }
   if (status === 409) {
     throw new ApiError('Дубликат записи (source + city + clinic + услуга)', 409, detail);
+  }
+  if (status === 0) {
+    throw new ApiError(detail, 0, detail);
   }
   throw new ApiError(detail, status, detail);
 }
@@ -80,7 +109,7 @@ function handleAdminError(status: number, detail: string): never {
 export class PriceDataRepositoryImpl implements PriceDataRepository {
   async list(params: PriceListParams): Promise<PriceListResult> {
     try {
-      const data = await httpClient<RawAdminPrice[] | RawListResponse>(
+      const data = await httpClient<unknown>(
         `/parser/data/prices?${buildQuery(params)}`,
       );
       return normalizeList(data);

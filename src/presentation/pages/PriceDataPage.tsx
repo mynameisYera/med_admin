@@ -47,6 +47,12 @@ export function PriceDataPage() {
           onReset={crud.resetFilters}
           disabled={crud.forbidden || crud.loading}
         />
+
+        {!crud.listRequested && !crud.forbidden && (
+          <p className="muted hint-block">
+            Данные не загружаются автоматически. Нажмите «Применить фильтры».
+          </p>
+        )}
       </section>
 
       <section className="panel">
@@ -59,7 +65,7 @@ export function PriceDataPage() {
             type="button"
             className="btn btn-ghost btn-sm"
             onClick={() => void crud.reload()}
-            disabled={crud.loading || crud.forbidden}
+            disabled={crud.loading || crud.forbidden || !crud.listRequested}
           >
             Обновить
           </button>
@@ -68,6 +74,7 @@ export function PriceDataPage() {
         <PriceDataTable
           items={crud.items}
           loading={crud.loading}
+          listRequested={crud.listRequested}
           actionLoading={crud.actionLoading}
           onEdit={(id) => void crud.openEdit(id)}
           onHide={(id) => void crud.hideRecord(id)}
@@ -79,7 +86,7 @@ export function PriceDataPage() {
             type="button"
             className="btn btn-secondary"
             onClick={crud.goPrev}
-            disabled={!crud.hasPrev || crud.loading}
+            disabled={!crud.hasPrev || crud.loading || !crud.listRequested}
           >
             ← Назад
           </button>
@@ -90,7 +97,7 @@ export function PriceDataPage() {
             type="button"
             className="btn btn-secondary"
             onClick={crud.goNext}
-            disabled={!crud.hasNext || crud.loading}
+            disabled={!crud.hasNext || crud.loading || !crud.listRequested}
           >
             Вперёд →
           </button>

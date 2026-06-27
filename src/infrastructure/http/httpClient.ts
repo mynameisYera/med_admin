@@ -1,5 +1,6 @@
 import { env } from '@/shared/config/env';
 import { ApiError, parseErrorResponse } from './apiError';
+import { fetchWithRetry, toApiError } from './networkError';
 import { tokenStorage } from '../storage/tokenStorage';
 
 type RequestOptions = Omit<RequestInit, 'headers'> & {
@@ -13,37 +14,42 @@ async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = tokenStorage.getRefresh();
   if (!refreshToken) return null;
 
-  const response = await fetch(`${env.apiUrl}/auth/refresh`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify({ refresh: refreshToken }),
-  });
+  try {
+    const response = await fetchWithRetry(`${env.apiUrl}/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ refresh: refreshToken }),
+    });
 
-  if (!response.ok) {
+    if (!response.ok) {
+      tokenStorage.clear();
+      return null;
+    }
+
+    const data = (await response.json()) as {
+      access?: string;
+      refresh?: string;
+      access_token?: string;
+      refresh_token?: string;
+    };
+
+    const access = data.access ?? data.access_token;
+    const refresh = data.refresh ?? data.refresh_token;
+
+    if (!access || !refresh) {
+      tokenStorage.clear();
+      return null;
+    }
+
+    tokenStorage.save(access, refresh);
+    return access;
+  } catch {
     tokenStorage.clear();
     return null;
   }
-
-  const data = (await response.json()) as {
-    access?: string;
-    refresh?: string;
-    access_token?: string;
-    refresh_token?: string;
-  };
-
-  const access = data.access ?? data.access_token;
-  const refresh = data.refresh ?? data.refresh_token;
-
-  if (!access || !refresh) {
-    tokenStorage.clear();
-    return null;
-  }
-
-  tokenStorage.save(access, refresh);
-  return access;
 }
 
 async function getValidAccessToken(): Promise<string | null> {
@@ -63,37 +69,48 @@ export async function httpClient<T>(
   });
 
   const execute = async (token: string | null): Promise<Response> =>
-    fetch(`${env.apiUrl}${path}`, {
+    fetchWithRetry(`${env.apiUrl}${path}`, {
       ...init,
       headers: buildHeaders(token),
     });
 
-  let token = skipAuth ? null : await getValidAccessToken();
-  let response = await execute(token);
+  try {
+    let token = skipAuth ? null : await getValidAccessToken();
+    let response = await execute(token);
 
-  if (response.status === 401 && !skipAuth) {
-    if (!refreshPromise) {
-      refreshPromise = refreshAccessToken().finally(() => {
-        refreshPromise = null;
-      });
+    if (response.status === 401 && !skipAuth) {
+      if (!refreshPromise) {
+        refreshPromise = refreshAccessToken().finally(() => {
+          refreshPromise = null;
+        });
+      }
+
+      token = await refreshPromise;
+      if (token) {
+        response = await execute(token);
+      } else {
+        throw new ApiError('Сессия истекла. Войдите снова.', 401);
+      }
     }
 
-    token = await refreshPromise;
-    if (token) {
-      response = await execute(token);
+    if (!response.ok) {
+      const detail = await parseErrorResponse(response);
+      throw new ApiError(detail, response.status, detail);
     }
-  }
 
-  if (!response.ok) {
-    const detail = await parseErrorResponse(response);
-    throw new ApiError(detail, response.status, detail);
-  }
+    if (response.status === 204) {
+      return undefined as T;
+    }
 
-  if (response.status === 204) {
-    return undefined as T;
-  }
+    const text = await response.text();
+    if (!text) {
+      return undefined as T;
+    }
 
-  return response.json() as Promise<T>;
+    return JSON.parse(text) as T;
+  } catch (error) {
+    throw toApiError(error);
+  }
 }
 
 export async function httpClientRaw(
@@ -111,29 +128,33 @@ export async function httpClientRaw(
       : {}),
   };
 
-  let response = await fetch(`${env.apiUrl}${path}`, {
-    ...options,
-    headers,
-  });
+  try {
+    let response = await fetchWithRetry(`${env.apiUrl}${path}`, {
+      ...options,
+      headers,
+    });
 
-  if (response.status === 401 && !options.skipAuth) {
-    if (!refreshPromise) {
-      refreshPromise = refreshAccessToken().finally(() => {
-        refreshPromise = null;
-      });
+    if (response.status === 401 && !options.skipAuth) {
+      if (!refreshPromise) {
+        refreshPromise = refreshAccessToken().finally(() => {
+          refreshPromise = null;
+        });
+      }
+
+      const newToken = await refreshPromise;
+      if (newToken) {
+        response = await fetchWithRetry(`${env.apiUrl}${path}`, {
+          ...options,
+          headers: {
+            ...headers,
+            Authorization: `JWT ${newToken}`,
+          },
+        });
+      }
     }
 
-    const newToken = await refreshPromise;
-    if (newToken) {
-      response = await fetch(`${env.apiUrl}${path}`, {
-        ...options,
-        headers: {
-          ...headers,
-          Authorization: `JWT ${newToken}`,
-        },
-      });
-    }
+    return response;
+  } catch (error) {
+    throw toApiError(error);
   }
-
-  return response;
 }

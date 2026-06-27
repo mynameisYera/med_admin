@@ -4,6 +4,7 @@ import { formatDateTime } from '@/shared/utils/format';
 interface PriceDataTableProps {
   items: AdminPrice[];
   loading: boolean;
+  listRequested: boolean;
   actionLoading: boolean;
   onEdit: (id: number) => void;
   onHide: (id: number) => void;
@@ -13,11 +14,18 @@ interface PriceDataTableProps {
 export function PriceDataTable({
   items,
   loading,
+  listRequested,
   actionLoading,
   onEdit,
   onHide,
   onDeleteHard,
 }: PriceDataTableProps) {
+  if (!listRequested) {
+    return (
+      <p className="muted">Нажмите «Применить фильтры», чтобы загрузить таблицу</p>
+    );
+  }
+
   if (loading) {
     return (
       <div className="loading-panel">

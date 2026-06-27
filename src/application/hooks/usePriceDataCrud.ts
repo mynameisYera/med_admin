@@ -42,7 +42,8 @@ export function usePriceDataCrud() {
   const [appliedFilters, setAppliedFilters] =
     useState<AppliedFilters>(EMPTY_FILTERS);
   const [cities, setCities] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [listRequested, setListRequested] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
@@ -94,6 +95,10 @@ export function usePriceDataCrud() {
         setForbidden(true);
         setItems([]);
         setTotal(0);
+      } else if (err instanceof ApiError && err.status === 401) {
+        setError(err.message);
+        setItems([]);
+        setTotal(0);
       } else {
         setError(err instanceof Error ? err.message : 'Ошибка загрузки');
       }
@@ -103,17 +108,20 @@ export function usePriceDataCrud() {
   }, [appliedFilters, offset]);
 
   useEffect(() => {
+    if (!listRequested) return;
     void loadList();
-  }, [loadList]);
+  }, [listRequested, loadList]);
 
   useEffect(() => {
+    if (!listRequested) return;
+
     const citySource = formOpen ? String(formData.source) : source;
     if (citySource) {
       void loadCities(citySource);
     } else {
       setCities([]);
     }
-  }, [formOpen, formData.source, source, loadCities]);
+  }, [formOpen, formData.source, source, loadCities, listRequested]);
 
   const applyFilters = useCallback(() => {
     setAppliedFilters({
@@ -123,6 +131,7 @@ export function usePriceDataCrud() {
       includeInactive,
     });
     setOffset(0);
+    setListRequested(true);
   }, [source, city, query, includeInactive]);
 
   const resetFilters = useCallback(() => {
@@ -132,6 +141,11 @@ export function usePriceDataCrud() {
     setIncludeInactive(false);
     setAppliedFilters(EMPTY_FILTERS);
     setOffset(0);
+    setListRequested(false);
+    setItems([]);
+    setTotal(0);
+    setError(null);
+    setForbidden(false);
   }, []);
 
   const hasNext = offset + items.length < total;
@@ -281,6 +295,7 @@ export function usePriceDataCrud() {
     actionLoading,
     error,
     forbidden,
+    listRequested,
     setError,
     applyFilters,
     resetFilters,
