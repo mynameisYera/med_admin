@@ -34,7 +34,7 @@ export function AdminLayout() {
             `admin-nav-link${isActive ? ' active' : ''}`
           }
         >
-          Данные (CRUD)
+          Данные
         </NavLink>
       </nav>
 
