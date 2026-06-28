@@ -31,14 +31,26 @@ const CITY_LABELS: Record<string, string> = {
   karaganda: 'Караганда',
 };
 
-export function formatCityLabel(slug: string): string {
+export function formatCityLabel(slug: string | null | undefined): string {
+  if (!slug) return '—';
   return CITY_LABELS[slug] ?? slug.charAt(0).toUpperCase() + slug.slice(1);
 }
 
-export function formatPriceKzt(amount: number, currency = 'KZT'): string {
-  return new Intl.NumberFormat('ru-KZ', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(amount);
+export function formatPriceKzt(
+  amount: number | null | undefined,
+  currency = 'KZT',
+): string {
+  const safeAmount =
+    typeof amount === 'number' && Number.isFinite(amount) ? amount : 0;
+  const safeCurrency = currency || 'KZT';
+
+  try {
+    return new Intl.NumberFormat('ru-KZ', {
+      style: 'currency',
+      currency: safeCurrency,
+      maximumFractionDigits: 0,
+    }).format(safeAmount);
+  } catch {
+    return `${safeAmount.toLocaleString('ru-RU')} ₸`;
+  }
 }

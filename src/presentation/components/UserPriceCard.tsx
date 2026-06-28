@@ -6,11 +6,13 @@ interface UserPriceCardProps {
   item: UserPrice;
 }
 
-function sourceLabel(source: string): string {
-  if (source in SOURCE_LABELS) {
-    return SOURCE_LABELS[source as ParserSource];
+function sourceLabel(source: string | null | undefined): string {
+  const value = source?.trim();
+  if (!value) return '—';
+  if (value in SOURCE_LABELS) {
+    return SOURCE_LABELS[value as ParserSource];
   }
-  return source.toUpperCase();
+  return value.toUpperCase();
 }
 
 export function UserPriceCard({ item }: UserPriceCardProps) {

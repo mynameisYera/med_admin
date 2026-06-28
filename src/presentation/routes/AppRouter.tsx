@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '@/application/hooks/useAuthContext';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { GuestRoute, ProtectedRoute } from './ProtectedRoute';
 import { AdminLayout } from '../layouts/AdminLayout';
 import { LoginPage } from '../pages/LoginPage';
@@ -22,7 +23,14 @@ export function AppRouter() {
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Navigate to="parse" replace />} />
               <Route path="parse" element={<ParsePage />} />
-              <Route path="prices" element={<PricesSearchPage />} />
+              <Route
+                path="prices"
+                element={
+                  <ErrorBoundary fallbackTitle="Ошибка на странице поиска цен">
+                    <PricesSearchPage />
+                  </ErrorBoundary>
+                }
+              />
               <Route path="data" element={<PriceDataPage />} />
             </Route>
           </Route>

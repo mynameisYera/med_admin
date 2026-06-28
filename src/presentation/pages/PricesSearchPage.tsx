@@ -76,8 +76,8 @@ export function PricesSearchPage() {
             <p className="muted">Ничего не найдено. Измените фильтры.</p>
           ) : (
             <div className="price-cards">
-              {search.items.map((item) => (
-                <UserPriceCard key={item.id} item={item} />
+              {search.items.map((item, index) => (
+                <UserPriceCard key={item.id ?? `price-${index}`} item={item} />
               ))}
             </div>
           )}

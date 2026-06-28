@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { userPriceService } from '@/application/services/userPriceService';
-import { useAuth } from '@/application/hooks/useAuthContext';
 import { ApiError } from '@/infrastructure/http/apiError';
 import type { PricesListParams, UserPrice } from '@/domain/entities/userPrice';
 
 const DEFAULT_LIMIT = 50;
 
 export function usePricesSearch() {
-  const { logout } = useAuth();
+  const navigate = useNavigate();
 
   const [city, setCity] = useState('');
   const [source, setSource] = useState('');
@@ -26,6 +26,15 @@ export function usePricesSearch() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listRequested, setListRequested] = useState(false);
+
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const buildParams = useCallback(
     (nextOffset: number): PricesListParams => {
@@ -56,13 +65,17 @@ export function usePricesSearch() {
     [city, source, query, minPrice, maxPrice, limit],
   );
 
-  const fetchList = useCallback(
-    async (nextOffset: number) => {
+  const fetchWithParams = useCallback(
+    async (params: PricesListParams) => {
+      if (!mountedRef.current) return;
+
       setLoading(true);
       setError(null);
 
       try {
-        const result = await userPriceService.list(buildParams(nextOffset));
+        const result = await userPriceService.list(params);
+
+        if (!mountedRef.current) return;
 
         setItems(result.items);
         setTotal(result.total);
@@ -73,16 +86,27 @@ export function usePricesSearch() {
         setTotalPrices(result.summary.total_prices);
         setListRequested(true);
       } catch (err) {
+        if (!mountedRef.current) return;
+
         if (err instanceof ApiError && err.status === 401) {
-          logout();
+          navigate('/admin/login', { replace: true });
           return;
         }
+
         setError(err instanceof Error ? err.message : 'Ошибка загрузки цен');
+        setListRequested(true);
       } finally {
-        setLoading(false);
+        if (mountedRef.current) {
+          setLoading(false);
+        }
       }
     },
-    [buildParams, logout],
+    [navigate],
+  );
+
+  const fetchList = useCallback(
+    (nextOffset: number) => fetchWithParams(buildParams(nextOffset)),
+    [fetchWithParams, buildParams],
   );
 
   const applyFilters = useCallback(() => {
@@ -101,7 +125,9 @@ export function usePricesSearch() {
     setTotal(0);
     setListRequested(false);
     setError(null);
-  }, []);
+
+    void fetchWithParams({ limit: DEFAULT_LIMIT, offset: 0 });
+  }, [fetchWithParams]);
 
   const reload = useCallback(() => {
     void fetchList(offset);
@@ -126,8 +152,8 @@ export function usePricesSearch() {
   useEffect(() => {
     if (initialLoadDone.current) return;
     initialLoadDone.current = true;
-    void fetchList(0);
-  }, [fetchList]);
+    void fetchWithParams({ limit: DEFAULT_LIMIT, offset: 0 });
+  }, [fetchWithParams]);
 
   return {
     city,
