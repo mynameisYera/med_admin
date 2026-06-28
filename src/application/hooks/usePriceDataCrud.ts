@@ -5,8 +5,10 @@ import { ApiError } from '@/infrastructure/http/apiError';
 import type {
   AdminPrice,
   CreatePriceData,
+  PriceExportFormat,
   UpdatePriceData,
 } from '@/domain/entities/priceData';
+import { triggerBrowserDownload } from '@/shared/utils/download';
 import {
   PARSER_SOURCES,
   SOURCE_LABELS,
@@ -45,6 +47,7 @@ export function usePriceDataCrud() {
   const [loading, setLoading] = useState(false);
   const [listRequested, setListRequested] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
 
@@ -275,6 +278,51 @@ export function usePriceDataCrud() {
     [],
   );
 
+  const exportPrices = useCallback(
+    async (format: PriceExportFormat) => {
+      setExportLoading(true);
+      setError(null);
+
+      try {
+        const filters = listRequested ? appliedFilters : {
+          source,
+          city,
+          query,
+          includeInactive,
+        };
+
+        const result = await priceDataService.export({
+          format,
+          source: filters.source || undefined,
+          city: filters.city || undefined,
+          q: filters.query || undefined,
+          includeInactive: filters.includeInactive,
+        });
+
+        triggerBrowserDownload(result.blob, result.filename);
+        setForbidden(false);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(true);
+        } else {
+          setError(
+            err instanceof Error ? err.message : 'Ошибка выгрузки файла',
+          );
+        }
+      } finally {
+        setExportLoading(false);
+      }
+    },
+    [
+      appliedFilters,
+      city,
+      includeInactive,
+      listRequested,
+      query,
+      source,
+    ],
+  );
+
   return {
     sources: PARSER_SOURCES,
     sourceLabels: SOURCE_LABELS,
@@ -293,6 +341,7 @@ export function usePriceDataCrud() {
     cities,
     loading,
     actionLoading,
+    exportLoading,
     error,
     forbidden,
     listRequested,
@@ -314,5 +363,6 @@ export function usePriceDataCrud() {
     hideRecord,
     deleteHard,
     reload: loadList,
+    exportPrices,
   };
 }

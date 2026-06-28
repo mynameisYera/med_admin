@@ -39,3 +39,18 @@ export interface PriceListResult {
   items: AdminPrice[];
   total: number;
 }
+
+export type PriceExportFormat = 'xlsx' | 'json';
+
+export interface PriceExportParams {
+  format?: PriceExportFormat;
+  source?: string;
+  city?: string;
+  q?: string;
+  includeInactive?: boolean;
+}
+
+export interface PriceExportResult {
+  blob: Blob;
+  filename: string;
+}

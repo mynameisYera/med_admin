@@ -13,12 +13,6 @@ export function PricesSearchPage() {
         <div className="section-header">
           <div>
             <h2>Поиск цен</h2>
-            <p className="muted">
-              Как на пользовательском сайте · GET /prices
-              {search.totalPrices > 0
-                ? ` · всего в БД ~${search.totalPrices.toLocaleString('ru-RU')}`
-                : ''}
-            </p>
           </div>
           <button
             type="button"

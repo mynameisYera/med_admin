@@ -165,3 +165,80 @@ export async function httpClientRaw(
     throw toApiError(error);
   }
 }
+
+function parseContentDispositionFilename(
+  header: string | null,
+): string | null {
+  if (!header) return null;
+
+  const utf8Match = /filename\*=UTF-8''([^;\n]+)/i.exec(header);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].trim());
+    } catch {
+      return utf8Match[1].trim();
+    }
+  }
+
+  const plainMatch = /filename="?([^";\n]+)"?/i.exec(header);
+  return plainMatch?.[1]?.trim() ?? null;
+}
+
+export async function httpClientBlob(
+  path: string,
+  options: RequestOptions = {},
+  fallbackFilename: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const { skipAuth = false, skipRefresh = false, headers = {}, ...init } =
+    options;
+
+  const buildHeaders = (token: string | null): Record<string, string> => ({
+    ...headers,
+    ...(token && !skipAuth ? { Authorization: `JWT ${token}` } : {}),
+  });
+
+  const execute = async (token: string | null): Promise<Response> =>
+    fetchWithRetry(`${env.apiUrl}${path}`, {
+      ...init,
+      headers: buildHeaders(token),
+    });
+
+  try {
+    let token = skipAuth ? null : await getValidAccessToken();
+    let response = await execute(token);
+
+    if (response.status === 401 && !skipAuth) {
+      if (skipRefresh) {
+        throw new ApiError('Сессия истекла. Войдите снова.', 401);
+      }
+
+      if (!refreshPromise) {
+        refreshPromise = refreshAccessToken().finally(() => {
+          refreshPromise = null;
+        });
+      }
+
+      token = await refreshPromise;
+      if (token) {
+        response = await execute(token);
+      } else {
+        throw new ApiError('Сессия истекла. Войдите снова.', 401);
+      }
+    }
+
+    if (!response.ok) {
+      const detail = await parseErrorResponse(response);
+      throw new ApiError(detail, response.status, detail);
+    }
+
+    const blob = await response.blob();
+    const filename =
+      parseContentDispositionFilename(
+        response.headers.get('Content-Disposition'),
+      ) ?? fallbackFilename;
+
+    return { blob, filename };
+  } catch (error) {
+    throw toApiError(error);
+  }
+}

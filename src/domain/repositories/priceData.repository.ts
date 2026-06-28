@@ -1,6 +1,8 @@
 import type {
   AdminPrice,
   CreatePriceData,
+  PriceExportParams,
+  PriceExportResult,
   PriceListParams,
   PriceListResult,
   UpdatePriceData,
@@ -12,4 +14,5 @@ export interface PriceDataRepository {
   create(data: CreatePriceData): Promise<AdminPrice>;
   update(id: number, data: UpdatePriceData): Promise<AdminPrice>;
   delete(id: number, hard?: boolean): Promise<void>;
+  export(params: PriceExportParams): Promise<PriceExportResult>;
 }

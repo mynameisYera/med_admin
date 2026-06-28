@@ -1,6 +1,7 @@
 import { priceDataRepository } from '@/infrastructure/repositories/priceDataRepositoryImpl';
 import type {
   CreatePriceData,
+  PriceExportParams,
   PriceListParams,
   UpdatePriceData,
 } from '@/domain/entities/priceData';
@@ -28,5 +29,9 @@ export const priceDataService = {
 
   deleteHard(id: number) {
     return priceDataRepository.delete(id, true);
+  },
+
+  export(params: PriceExportParams) {
+    return priceDataRepository.export(params);
   },
 };

@@ -2,12 +2,14 @@ import type { PriceDataRepository } from '@/domain/repositories/priceData.reposi
 import type {
   AdminPrice,
   CreatePriceData,
+  PriceExportParams,
+  PriceExportResult,
   PriceListParams,
   PriceListResult,
   UpdatePriceData,
 } from '@/domain/entities/priceData';
 import { ApiError } from '../http/apiError';
-import { httpClient } from '../http/httpClient';
+import { httpClient, httpClientBlob } from '../http/httpClient';
 
 interface RawAdminPrice {
   id: number;
@@ -58,6 +60,34 @@ function buildQuery(params: PriceListParams): string {
   search.set('offset', String(params.offset ?? 0));
 
   return search.toString();
+}
+
+function buildExportQuery(params: PriceExportParams): string {
+  const search = new URLSearchParams();
+  const format = params.format ?? 'xlsx';
+  search.set('format', format);
+
+  if (params.source) search.set('source', params.source);
+  if (params.city) search.set('city', params.city);
+  if (params.q) search.set('q', params.q);
+
+  if (params.includeInactive === false) {
+    search.set('include_inactive', 'false');
+  } else if (params.includeInactive) {
+    search.set('include_inactive', 'true');
+  }
+
+  return search.toString();
+}
+
+function defaultExportFilename(format: PriceExportParams['format']): string {
+  const stamp = new Date()
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\..+/, '')
+    .slice(0, 15);
+  const ext = format === 'json' ? 'json' : 'xlsx';
+  return `uiren_services_${stamp}.${ext}`;
 }
 
 function normalizeList(data: unknown): PriceListResult {
@@ -170,6 +200,21 @@ export class PriceDataRepositoryImpl implements PriceDataRepository {
         }
         handleAdminError(err.status, err.message);
       }
+      throw err;
+    }
+  }
+
+  async export(params: PriceExportParams): Promise<PriceExportResult> {
+    const format = params.format ?? 'xlsx';
+
+    try {
+      return await httpClientBlob(
+        `/parser/data/prices/export?${buildExportQuery(params)}`,
+        {},
+        defaultExportFilename(format),
+      );
+    } catch (err) {
+      if (err instanceof ApiError) handleAdminError(err.status, err.message);
       throw err;
     }
   }

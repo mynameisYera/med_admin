@@ -23,14 +23,32 @@ export function PriceDataPage() {
       <section className="panel">
         <div className="section-header">
           <h2>Управление ценами</h2>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={crud.openCreate}
-            disabled={crud.forbidden || crud.actionLoading}
-          >
-            Добавить вручную
-          </button>
+          <div className="actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void crud.exportPrices('xlsx')}
+              disabled={crud.forbidden || crud.exportLoading}
+            >
+              {crud.exportLoading ? 'Выгрузка…' : 'Скачать Excel'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => void crud.exportPrices('json')}
+              disabled={crud.forbidden || crud.exportLoading}
+            >
+              JSON
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={crud.openCreate}
+              disabled={crud.forbidden || crud.actionLoading}
+            >
+              Добавить вручную
+            </button>
+          </div>
         </div>
 
         <PriceDataFilters
