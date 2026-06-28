@@ -2,7 +2,6 @@ import type {
   ParsedCityEntry,
   ParserSource,
   ParserStatus,
-  PriceRecord,
   StartParseRequest,
   StartParseResponse,
 } from '../entities/parser';
@@ -15,9 +14,4 @@ export interface ParserRepository {
     request: StartParseRequest,
   ): Promise<StartParseResponse>;
   getParsedCities(): Promise<ParsedCityEntry[]>;
-  getPrices(
-    source: ParserSource,
-    city: string,
-    limit: number,
-  ): Promise<PriceRecord[]>;
 }

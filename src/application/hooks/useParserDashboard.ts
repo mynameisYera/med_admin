@@ -7,7 +7,6 @@ import {
   type ParsedCityEntry,
   type ParserSource,
   type ParserStatus,
-  type PriceRecord,
   type StartParseResponse,
 } from '@/domain/entities/parser';
 
@@ -22,8 +21,6 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
   const [limit, setLimit] = useState(20);
   const [status, setStatus] = useState<ParserStatus | null>(null);
   const [parsedCities, setParsedCities] = useState<ParsedCityEntry[]>([]);
-  const [prices, setPrices] = useState<PriceRecord[]>([]);
-  const [pricesLoading, setPricesLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +103,6 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
         setCity(nextCities[0] ?? '');
         setStatus(nextStatus);
         setParsedCities(nextParsed);
-        setPrices([]);
 
         if (nextStatus.running) {
           startPolling();
@@ -195,31 +191,6 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
 
   const changeCity = useCallback((nextCity: string) => {
     setCity(nextCity);
-    setPrices([]);
-  }, []);
-
-  const refreshPrices = useCallback(async () => {
-    if (!cityRef.current) {
-      setError('Выберите город');
-      return;
-    }
-
-    setPricesLoading(true);
-    setError(null);
-
-    try {
-      const nextPrices = await parserService.loadPrices(
-        sourceRef.current,
-        cityRef.current,
-        10,
-      );
-      setPrices(nextPrices);
-    } catch (err) {
-      setPrices([]);
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки цен');
-    } finally {
-      setPricesLoading(false);
-    }
   }, []);
 
   const isRunning = Boolean(status?.running);
@@ -236,8 +207,6 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
     setLimit,
     status,
     parsedCities,
-    prices,
-    pricesLoading,
     loading,
     actionLoading,
     error,
@@ -245,7 +214,6 @@ export function useParserDashboard(initialSource: ParserSource = 'kdl') {
     isRunning,
     startParse,
     refreshStatus,
-    refreshPrices,
     setError,
   };
 }

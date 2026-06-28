@@ -43,11 +43,3 @@ export interface StartParseResponse {
   estimated_minutes?: number;
   message?: string;
 }
-
-export interface PriceRecord {
-  service_name_raw?: string;
-  price_kzt?: number;
-  source?: string;
-  city?: string;
-  [key: string]: unknown;
-}

@@ -21,6 +21,20 @@ function IconParse() {
   );
 }
 
+function IconSearch() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        d="M20 20l-3.5-3.5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function IconData() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -97,6 +111,15 @@ export function AdminLayout() {
           >
             <IconParse />
             Парсинг
+          </NavLink>
+          <NavLink
+            to="/admin/prices"
+            className={({ isActive }) =>
+              `sidebar-link${isActive ? ' active' : ''}`
+            }
+          >
+            <IconSearch />
+            Поиск цен
           </NavLink>
           <NavLink
             to="/admin/data"

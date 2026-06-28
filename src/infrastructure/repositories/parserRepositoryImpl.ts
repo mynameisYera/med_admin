@@ -3,7 +3,6 @@ import type {
   ParsedCityEntry,
   ParserSource,
   ParserStatus,
-  PriceRecord,
   StartParseRequest,
   StartParseResponse,
 } from '@/domain/entities/parser';
@@ -109,25 +108,6 @@ export class ParserRepositoryImpl implements ParserRepository {
   async getParsedCities(): Promise<ParsedCityEntry[]> {
     const data = await httpClient<unknown>('/parser/cities/parsed');
     return normalizeParsedCities(data);
-  }
-
-  async getPrices(
-    source: ParserSource,
-    city: string,
-    limit: number,
-  ): Promise<PriceRecord[]> {
-    const params = new URLSearchParams({
-      source,
-      city,
-      limit: String(limit),
-    });
-
-    const data = await httpClient<PriceRecord[] | { items?: PriceRecord[] }>(
-      `/parser/prices?${params.toString()}`,
-    );
-
-    if (Array.isArray(data)) return data;
-    return data.items ?? [];
   }
 }
 

@@ -25,10 +25,6 @@ export const parserService = {
     });
   },
 
-  loadPrices(source: ParserSource, city: string, limit: number) {
-    return parserRepository.getPrices(source, city, limit);
-  },
-
   loadParsedCities() {
     return parserRepository.getParsedCities();
   },

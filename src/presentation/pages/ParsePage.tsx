@@ -2,7 +2,6 @@ import { useParserDashboard } from '@/application/hooks/useParserDashboard';
 import { ParserForm } from '../components/ParserForm';
 import { ParserStatusPanel } from '../components/ParserStatusPanel';
 import { ParsedCitiesTable } from '../components/ParsedCitiesTable';
-import { PricesPreview } from '../components/PricesPreview';
 import type { ParserSource } from '@/domain/entities/parser';
 
 export function ParsePage() {
@@ -51,16 +50,6 @@ export function ParsePage() {
 
           <section className="panel">
             <ParsedCitiesTable entries={dashboard.parsedCities} />
-          </section>
-
-          <section className="panel">
-            <PricesPreview
-              prices={dashboard.prices}
-              source={dashboard.source}
-              city={dashboard.city}
-              loading={dashboard.pricesLoading}
-              onLoad={() => void dashboard.refreshPrices()}
-            />
           </section>
         </>
       )}

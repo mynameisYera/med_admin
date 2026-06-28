@@ -6,6 +6,8 @@ import { tokenStorage } from '../storage/tokenStorage';
 type RequestOptions = Omit<RequestInit, 'headers'> & {
   headers?: Record<string, string>;
   skipAuth?: boolean;
+  /** No token refresh on 401 — caller handles logout (user /prices API). */
+  skipRefresh?: boolean;
 };
 
 let refreshPromise: Promise<string | null> | null = null;
@@ -60,7 +62,8 @@ export async function httpClient<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { skipAuth = false, headers = {}, ...init } = options;
+  const { skipAuth = false, skipRefresh = false, headers = {}, ...init } =
+    options;
 
   const buildHeaders = (token: string | null): Record<string, string> => ({
     Accept: 'application/json',
@@ -79,6 +82,10 @@ export async function httpClient<T>(
     let response = await execute(token);
 
     if (response.status === 401 && !skipAuth) {
+      if (skipRefresh) {
+        throw new ApiError('Сессия истекла. Войдите снова.', 401);
+      }
+
       if (!refreshPromise) {
         refreshPromise = refreshAccessToken().finally(() => {
           refreshPromise = null;

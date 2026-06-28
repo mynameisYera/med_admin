@@ -22,3 +22,23 @@ export function formatElapsed(seconds: number | null | undefined): string {
 export async function copyToClipboard(text: string): Promise<void> {
   await navigator.clipboard.writeText(text);
 }
+
+const CITY_LABELS: Record<string, string> = {
+  almaty: 'Алматы',
+  astana: 'Астана',
+  pavlodar: 'Павлодар',
+  shymkent: 'Шымкент',
+  karaganda: 'Караганда',
+};
+
+export function formatCityLabel(slug: string): string {
+  return CITY_LABELS[slug] ?? slug.charAt(0).toUpperCase() + slug.slice(1);
+}
+
+export function formatPriceKzt(amount: number, currency = 'KZT'): string {
+  return new Intl.NumberFormat('ru-KZ', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
